@@ -38,6 +38,21 @@ def get_lora_weights(
             tensors[key] = f.get_tensor(key)
     return tensors
 
+def to_kohya_key(key: str):
+    splts = key.split('.')
+    block = splts[0]
+
+    if block == 'down_blocks':
+        block, n1, t1, n2, t2, n3, t3 = splts
+        kohya_key = f'lora_unet_input_blocks_{3 * int(n1) + int(n2) + 1}_1_{t2}_{n3}_{t3}'
+    elif block == 'up_blocks':
+        block, n1, t1, n2, t2, n3, t3 = splts
+        kohya_key = f'lora_unet_output_blocks_{3 * int(n1) + int(n2)}_1_{t2}_{n3}_{t3}'
+    elif block == 'mid_block':
+        block, t1, n1, t2, n2, t3 = splts
+        kohya_key = f'lora_unet_middle_block_1_{t2}_{n2}_{t3}'
+
+    return kohya_key
 
 def merge_lora_weights(
     tensors: torch.Tensor, key: str, prefix: str = "unet.unet."
@@ -48,12 +63,13 @@ def merge_lora_weights(
         key (str): target attn layer's key
         prefix (str, optional): prefix for state dict. Defaults to "unet.unet.".
     """
-    target_key = prefix + key
+    target_key = to_kohya_key(key)
+
     out = {}
-    for part in ["to_q", "to_k", "to_v", "to_out.0"]:
-        down_key = target_key + f".{part}.lora.down.weight"
-        up_key = target_key + f".{part}.lora.up.weight"
-        merged_weight = tensors[up_key] @ tensors[down_key]
+    for part in ["to_q", "to_k", "to_v", "to_out_0"]:
+        down_key = target_key + f"_{part}.lora_down.weight"
+        up_key = target_key + f"_{part}.lora_up.weight"
+        merged_weight = tensors[up_key].float() @ tensors[down_key].float()
         out[part] = merged_weight
     return out
 
@@ -126,9 +142,10 @@ def merge_lora_weights_for_inference(
         prefix (str, optional): prefix for state dict. Defaults to "unet.unet.".
     """
     target_key = prefix + key
+
     out = {}
-    for part in ["to_q", "to_k", "to_v", "to_out.0"]:
-        key = target_key + f".{part}.lora.weight"
+    for part in ["to_q", "to_k", "to_v", "to_out_0"]:
+        key = target_key + f".{'to_out.0' if part == 'to_out_0' else part}.lora.weight"
         out[part] = tensors[key]
     return out
 
@@ -187,7 +204,7 @@ def insert_ziplora_to_unet(
             initialize_ziplora_layer_for_inference(
                 in_features=attn_module.to_out[0].in_features,
                 out_features=attn_module.to_out[0].out_features,
-                part="to_out.0",
+                part="to_out_0",
                 **kwargs,
             )
         )

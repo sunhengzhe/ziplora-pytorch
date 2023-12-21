@@ -164,7 +164,7 @@ Special VAE used for training: {vae_path}.
 
 ## Trigger words
 
-You should use a combination of  {instance_prompt} and {instance_prompt_2} to trigger the image generation 
+You should use a combination of  {instance_prompt} and {instance_prompt_2} to trigger the image generation
 using the two trained concepts.
 
 ## Download model
@@ -1055,7 +1055,7 @@ def main(args):
         )
         attn_module.to_out[0].set_lora_layer(
             initialize_ziplora_layer(
-                part="to_out.0",
+                part="to_out_0",
                 in_features=attn_module.to_out[0].in_features,
                 out_features=attn_module.to_out[0].out_features,
                 init_merger_value=args.init_merger_value,
@@ -1701,7 +1701,7 @@ def main(args):
     accelerator.wait_for_everyone()
     if accelerator.is_main_process:
         unet = accelerator.unwrap_model(unet)
-        unet = unet.to(torch.float32)
+        unet = unet.to(torch.float16)
         unet_lora_layers = unet_ziplora_state_dict(unet, args.quick_release)
 
         if args.train_text_encoder:
